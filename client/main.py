@@ -28,7 +28,7 @@ from edge_detector import EdgeDetector, TriggerEdge
 # Import auto-discovery
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
 try:
-    from auto_discovery import NetworkDiscovery
+    from shared.auto_discovery import NetworkDiscovery
     AUTO_DISCOVERY_AVAILABLE = True
 except ImportError:
     AUTO_DISCOVERY_AVAILABLE = False
