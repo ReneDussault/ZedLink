@@ -51,28 +51,47 @@ A lightweight tool to control a Linux Mint PC's mouse pointer from a Windows/Ubu
   - [x] Detect edge collision with configurable delay
   - [x] Prevent false triggers from fast movements
   - [x] Smooth transition animations
+  - [x] Switch to continuous tracking in remote mode
+  - [x] Real-time mouse movement synchronization
 
 - [x] **Configuration System**
   - [x] Configurable trigger edge (top/bottom/left/right)
   - [x] Adjustable trigger delay (50-500ms)
   - [x] Return method selection (opposite edge/specific edge)
   - [x] Save/load user preferences
+  - [x] Escape key exit mechanism
 
-### Phase 4: Hotkey System
+### Phase 4: Network Discovery ✅ Complete
+
+- [x] **Auto-Discovery**
+
+  - [x] Broadcast/multicast server discovery
+  - [x] Local network scanning
+  - [x] Device identification and naming
+  - [x] Remember known devices
+  - [x] Automatic fallback to discovered servers
+
+- [x] **Manual Connection**
+  - [x] IP address input
+  - [x] Port configuration
+  - [x] Connection testing
+  - [x] Persistent connection list
+
+### Phase 5: Hotkey System
 
 - [ ] **Hotkey Handler**
 
   - [ ] Global hotkey registration (Ctrl+Alt+M default)
-  - [ ] Emergency escape key (Esc)
+  - [x] Emergency escape key (Esc) ✅ Implemented
   - [ ] Toggle between local/remote control
   - [ ] Customizable key combinations
 
 - [ ] **Integration**
-  - [ ] Coordinate with edge detection system
-  - [ ] Priority handling (hotkey overrides edge)
-  - [ ] State synchronization
+  - [x] Coordinate with edge detection system ✅ Working
+  - [x] Priority handling (escape overrides remote mode) ✅ Working
+  - [x] State synchronization ✅ Working
 
-### Phase 5: User Interface
+### Phase 6: User Interface
 
 - [ ] **System Tray Integration**
 
@@ -82,28 +101,12 @@ A lightweight tool to control a Linux Mint PC's mouse pointer from a Windows/Ubu
   - [ ] Settings access
 
 - [ ] **Settings Window**
+
   - [ ] Edge selection dropdown
   - [ ] Trigger delay slider
   - [ ] Hotkey customization
   - [ ] Server discovery/manual IP entry
   - [ ] Connection preferences
-
-### Phase 6: Network Discovery
-
-- [ ] **Auto-Discovery**
-
-  - [ ] Broadcast/multicast server discovery
-  - [ ] Local network scanning
-  - [ ] Device identification and naming
-  - [ ] Remember known devices
-
-- [ ] **Manual Connection**
-  - [ ] IP address input
-  - [ ] Port configuration
-  - [ ] Connection testing
-  - [ ] Persistent connection list
-
-### Phase 7: Performance & Polish
 
 - [ ] **Optimization**
 
@@ -126,7 +129,7 @@ A lightweight tool to control a Linux Mint PC's mouse pointer from a Windows/Ubu
   - [ ] Different screen resolutions
   - [ ] Multiple monitor setups
 
-### Phase 8: Advanced Features (Future)
+### Phase 7: Advanced Features (Future)
 
 - [ ] **Enhanced Control**
 
@@ -203,9 +206,24 @@ ZedLink/
 
 ---
 
-## Current Status: 📋 Planning Complete
+## Current Status: 🚧 **CORE FUNCTIONALITY WORKING - REFINEMENTS NEEDED**
 
-**Next Step**: Create project structure and basic server/client foundation
+**ZedLink basic remote mouse control is functional!**
+
+✅ **Working:**
+
+- Edge detection triggers (right edge → remote control)
+- Real-time mouse movement synchronization
+- Auto-discovery of Linux servers
+- Clean escape mechanism (Esc key)
+- Cross-platform compatibility (Windows ↔ Linux)
+
+� **Current Issues Being Fixed:**
+
+- Local mouse still moves when in remote mode (needs capture)
+- Mouse clicks not forwarded to remote (implementing)
+
+🚀 **Next Steps:** Mouse capture, click forwarding, UI improvements
 
 ## Notes
 

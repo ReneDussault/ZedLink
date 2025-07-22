@@ -131,6 +131,7 @@ class ZedLinkApp:
         self.edge_detector.on_edge_triggered = self._on_edge_triggered
         self.edge_detector.on_edge_left = self._on_edge_left
         self.edge_detector.on_mouse_move = self._on_mouse_move  # New: for remote mode
+        self.edge_detector.on_mouse_click = self._on_mouse_click  # New: for clicks
         self.edge_detector.on_escape_pressed = self._on_escape_pressed  # New: for exiting remote mode
         
         self.logger.info(f"Edge detector configured: {screen_width}x{screen_height}, "
@@ -173,6 +174,23 @@ class ZedLinkApp:
             y_ratio = max(0.0, min(1.0, y_ratio))
             
             self.client.send_mouse_move(x_ratio, y_ratio)
+            
+    def _on_mouse_click(self, x: int, y: int, button: str, pressed: bool):
+        """Handle mouse click in remote mode"""
+        if not self.is_remote_mode:
+            return
+            
+        # Convert to relative coordinates and send to server
+        if self.edge_detector:
+            x_ratio = x / self.edge_detector.screen_width
+            y_ratio = y / self.edge_detector.screen_height
+            
+            # Clamp to 0.0-1.0 range
+            x_ratio = max(0.0, min(1.0, x_ratio))
+            y_ratio = max(0.0, min(1.0, y_ratio))
+            
+            self.client.send_mouse_click(x_ratio, y_ratio, button, pressed)
+            self.logger.debug(f"Sent click: {button} {'press' if pressed else 'release'} at ({x_ratio:.3f}, {y_ratio:.3f})")
             
     def _on_escape_pressed(self):
         """Handle escape key press to exit remote mode"""

@@ -78,6 +78,7 @@ class EdgeDetector:
         self.on_edge_triggered: Optional[Callable[[TriggerEdge, Tuple[int, int]], None]] = None
         self.on_edge_left: Optional[Callable[[], None]] = None
         self.on_mouse_move: Optional[Callable[[int, int], None]] = None  # New: for remote mode
+        self.on_mouse_click: Optional[Callable[[int, int, str, bool], None]] = None  # New: for clicks
         self.on_escape_pressed: Optional[Callable[[], None]] = None  # New: for exiting remote mode
         
         # Threading
@@ -85,6 +86,13 @@ class EdgeDetector:
         self._keyboard_listener = None  # New: for escape key
         self._monitor_thread = None
         self._stop_event = threading.Event()
+        self._mouse_controller = None  # For local mouse control
+        
+        # Initialize local mouse controller for capturing
+        if PYNPUT_AVAILABLE and mouse:
+            self._mouse_controller = mouse.Controller()
+        else:
+            self._mouse_controller = None
         
         # Logging
         self.logger = logging.getLogger(__name__)
@@ -110,9 +118,17 @@ class EdgeDetector:
         self.is_remote_mode = True
         self.logger.info("Entered remote tracking mode")
         
+        # Capture mouse to prevent local movement
+        if self._mouse_controller:
+            # Get current position to maintain it
+            current_pos = self._mouse_controller.position
+            self._captured_position = current_pos
+            self.logger.debug(f"Mouse captured at position: {current_pos}")
+        
     def exit_remote_mode(self):
         """Exit remote tracking mode - return to edge detection"""
         self.is_remote_mode = False
+        self._captured_position = None
         self.logger.info("Exited remote tracking mode")
         
     def _is_at_trigger_edge(self, x: int, y: int) -> bool:
@@ -144,6 +160,12 @@ class EdgeDetector:
         if self.is_remote_mode:
             if self.on_mouse_move:
                 self.on_mouse_move(x, y)
+                
+            # Keep local mouse captured at edge position
+            if self._mouse_controller and hasattr(self, '_captured_position') and self._captured_position:
+                if (x, y) != self._captured_position:
+                    # Reset mouse to captured position to prevent local movement
+                    self._mouse_controller.position = self._captured_position
             return  # Skip edge detection when in remote mode
         
         # Normal edge detection logic
@@ -164,6 +186,26 @@ class EdgeDetector:
             # Notify that we left the edge
             if self.on_edge_left:
                 self.on_edge_left()
+                
+    def _on_mouse_click(self, x: int, y: int, button, pressed: bool):
+        """Handle mouse click events"""
+        if not self.is_remote_mode:
+            return  # Only forward clicks in remote mode
+            
+        # Convert button to string
+        button_name = "left"
+        if hasattr(button, 'name'):
+            button_name = button.name
+        elif str(button).endswith('left'):
+            button_name = "left"
+        elif str(button).endswith('right'):
+            button_name = "right"
+        elif str(button).endswith('middle'):
+            button_name = "middle"
+            
+        # Forward click to remote
+        if self.on_mouse_click:
+            self.on_mouse_click(x, y, button_name, pressed)
                 
     def _on_key_press(self, key):
         """Handle keyboard key press events"""
@@ -222,7 +264,10 @@ class EdgeDetector:
         if not MouseListener:
             raise RuntimeError("MouseListener not available")
             
-        self._mouse_listener = MouseListener(on_move=self._on_mouse_move)
+        self._mouse_listener = MouseListener(
+            on_move=self._on_mouse_move,
+            on_click=self._on_mouse_click
+        )
         self._mouse_listener.start()
         
         # Start keyboard listener for escape key
