@@ -184,10 +184,10 @@ class ZedLinkApp:
             
         # Send relative movement to server
         if self.client.is_connected():
-            # Convert pixel deltas to relative deltas with much higher sensitivity
+            # Convert pixel deltas to relative deltas with sensitivity
             if self.edge_detector:
-                # Much higher sensitivity for better responsiveness
-                sensitivity = 8.0  # Increased from 3.0 to make mouse much more responsive
+                # Moderate sensitivity for smooth control without cursor confinement
+                sensitivity = 2.5  # Reduced from 8.0 since cursor is now free-moving
                 
                 dx_ratio = (dx * sensitivity) / self.edge_detector.screen_width
                 dy_ratio = (dy * sensitivity) / self.edge_detector.screen_height

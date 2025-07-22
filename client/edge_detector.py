@@ -196,9 +196,9 @@ class EdgeDetector:
             self._remote_mode_start_pos = current_pos
             self._last_raw_position = current_pos
             
-            # Hide cursor and confine it to a small area at the edge
+            # Hide cursor but don't confine it - let it move freely for smooth deltas
             self._hide_cursor()
-            self._confine_cursor(current_pos[0], current_pos[1], 2, 2)
+            # Removed cursor confinement to allow smooth delta movement
         
     def exit_remote_mode(self):
         """Exit remote tracking mode - return to edge detection"""
