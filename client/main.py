@@ -42,6 +42,7 @@ class ZedLinkApp:
         self.edge_detector = None
         self.is_running = False
         self.is_remote_mode = False
+        self._escape_pressed = False  # Flag to prevent duplicate escape handling
         
         # Setup logging
         level = logging.DEBUG if self.config.debug_mode else logging.INFO
@@ -130,7 +131,7 @@ class ZedLinkApp:
         # Setup callbacks
         self.edge_detector.on_edge_triggered = self._on_edge_triggered
         self.edge_detector.on_edge_left = self._on_edge_left
-        self.edge_detector.on_mouse_move = self._on_mouse_move  # New: for remote mode
+        # Note: Not using on_mouse_move anymore - only delta movement
         self.edge_detector.on_mouse_delta = self._on_mouse_delta  # New: for relative movement
         self.edge_detector.on_mouse_click = self._on_mouse_click  # New: for clicks
         self.edge_detector.on_escape_pressed = self._on_escape_pressed  # New: for exiting remote mode
@@ -183,17 +184,17 @@ class ZedLinkApp:
             
         # Send relative movement to server
         if self.client.is_connected():
-            # Convert pixel deltas to relative deltas with sensitivity multiplier
+            # Convert pixel deltas to relative deltas with much higher sensitivity
             if self.edge_detector:
-                # Apply sensitivity multiplier to make movement more responsive
-                sensitivity = 3.0  # Increase this to make mouse more sensitive
+                # Much higher sensitivity for better responsiveness
+                sensitivity = 8.0  # Increased from 3.0 to make mouse much more responsive
                 
                 dx_ratio = (dx * sensitivity) / self.edge_detector.screen_width
                 dy_ratio = (dy * sensitivity) / self.edge_detector.screen_height
                 
-                # Send as a mouse delta message
-                success = self.client.send_mouse_delta(dx_ratio, dy_ratio)
-                if dx != 0 or dy != 0:  # Only log actual movement
+                # Only send if there's actual movement to avoid noise
+                if abs(dx) > 0 or abs(dy) > 0:
+                    success = self.client.send_mouse_delta(dx_ratio, dy_ratio)
                     self.logger.debug(f"Sent delta: ({dx}, {dy}) -> ({dx_ratio:.4f}, {dy_ratio:.4f})")
             
     def _on_mouse_click(self, x: int, y: int, button: str, pressed: bool):
@@ -217,7 +218,8 @@ class ZedLinkApp:
             
     def _on_escape_pressed(self):
         """Handle escape key press to exit remote mode"""
-        if self.is_remote_mode:
+        if self.is_remote_mode and not self._escape_pressed:
+            self._escape_pressed = True  # Prevent duplicate handling
             self.logger.info("Escape pressed - exiting remote mode")
             self._exit_remote_mode()
             
@@ -227,6 +229,13 @@ class ZedLinkApp:
                 
             if self.config.show_notifications:
                 print("⌨️  Pressed Escape - remote control deactivated")
+            
+            # Reset escape flag after a short delay
+            import threading
+            def reset_escape():
+                time.sleep(0.5)
+                self._escape_pressed = False
+            threading.Thread(target=reset_escape, daemon=True).start()
             
     def _connect_to_server(self) -> bool:
         """Connect to the ZedLink server with auto-discovery fallback"""
@@ -259,16 +268,14 @@ class ZedLinkApp:
             return
             
         self.is_remote_mode = True
+        self._escape_pressed = False  # Reset escape flag when entering remote mode
         self.edge_detector.enter_remote_mode()  # Switch edge detector to remote mode
         self.logger.info(f"🖱️  Entering remote mode at {entry_position}")
         
         if self.config.show_notifications:
             print(f"🔗 Remote control active - controlling {self.config.server_host}")
             
-        # Send initial position to remote
-        x_ratio = entry_position[0] / self.edge_detector.screen_width
-        y_ratio = entry_position[1] / self.edge_detector.screen_height
-        self.client.send_mouse_move(x_ratio, y_ratio)
+        # Don't send initial position - just start delta tracking to avoid conflicts
         
     def _exit_remote_mode(self):
         """Exit remote control mode"""

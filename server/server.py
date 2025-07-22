@@ -17,7 +17,10 @@ from mouse_controller import MouseController
 
 def signal_handler(sig, frame):
     """Handle Ctrl+C gracefully (cross-platform)"""
-    print("\nShutting down ZedLink Server...")
+    print("\n🛑 Shutting down ZedLink Server...")
+    # Don't call sys.exit here, let the main loop handle cleanup
+    if hasattr(signal_handler, 'server'):
+        signal_handler.server.stop()
     sys.exit(0)
 
 def setup_signal_handlers():
@@ -47,6 +50,9 @@ def main():
     mouse_controller = MouseController()
     server = ZedLinkServer(mouse_controller=mouse_controller)
     
+    # Store server reference for signal handler
+    signal_handler.server = server
+    
     print(f"🚀 Server listening on port 9876")
     print("💡 Ready for client connections!")
     print("   Press Ctrl+C to stop")
@@ -55,7 +61,7 @@ def main():
         # Start the server (this will block)
         server.start()
     except KeyboardInterrupt:
-        print("\n🛑 Server stopped by user")
+        pass  # Don't print here, signal handler already did
     finally:
         server.stop()
 
