@@ -182,13 +182,22 @@ class ZedLinkApp:
         if not self.is_remote_mode:
             return
             
-        # Send relative movement to server using RAW pixel deltas
-        if self.client.is_connected():
-            # Send raw pixel deltas - let the server handle coordinate transformation
-            # This avoids the aspect ratio and sensitivity issues
-            if abs(dx) > 0 or abs(dy) > 0:
-                success = self.client.send_mouse_delta(float(dx), float(dy))
-                self.logger.debug(f"Sent raw delta: ({dx}, {dy})")
+        # Simple approach: send the current mouse position directly
+        # Let the server map this to its screen coordinates
+        if self.client.is_connected() and self.edge_detector:
+            current_x, current_y = self.edge_detector.last_position
+            
+            # Convert to normalized coordinates (0.0 to 1.0)
+            x_ratio = current_x / self.edge_detector.screen_width
+            y_ratio = current_y / self.edge_detector.screen_height
+            
+            # Clamp to valid range
+            x_ratio = max(0.0, min(1.0, x_ratio))
+            y_ratio = max(0.0, min(1.0, y_ratio))
+            
+            # Send as absolute position - much simpler!
+            success = self.client.send_mouse_move(x_ratio, y_ratio)
+            self.logger.debug(f"Sent position: ({current_x}, {current_y}) -> ({x_ratio:.3f}, {y_ratio:.3f})")
             
     def _on_mouse_click(self, x: int, y: int, button: str, pressed: bool):
         """Handle mouse click in remote mode"""

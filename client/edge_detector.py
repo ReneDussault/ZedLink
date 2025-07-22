@@ -186,33 +186,18 @@ class EdgeDetector:
         self.logger.info(f"Trigger delay set to: {self.trigger_delay}s")
         
     def enter_remote_mode(self):
-        """Enter remote tracking mode with proper mouse capture"""
+        """Enter remote tracking mode - simple position tracking"""
         self.is_remote_mode = True
         self.logger.info("Entered remote tracking mode")
         
-        # Get remote screen dimensions for proper aspect ratio handling
-        self._get_remote_screen_info()
-        
-        # Capture mouse input properly
+        # Just hide the cursor - keep it simple
         if self._mouse_controller:
             current_pos = self._mouse_controller.position
             self._remote_mode_start_pos = current_pos
             self._last_raw_position = current_pos
             
-            # Hide cursor and center it on screen for true capture
+            # Just hide cursor - no complex capture
             self._hide_cursor()
-            center_x = self.screen_width // 2
-            center_y = self.screen_height // 2
-            self._mouse_controller.position = (center_x, center_y)
-            self._last_raw_position = (center_x, center_y)
-            
-    def _get_remote_screen_info(self):
-        """Get remote screen dimensions for aspect ratio correction"""
-        # This will be set by the main client when server sends screen info
-        # For now, assume standard 16:9 ratio
-        self._remote_width = 1920
-        self._remote_height = 1080
-        self.logger.debug(f"Remote screen assumed: {self._remote_width}x{self._remote_height}")
         
     def exit_remote_mode(self):
         """Exit remote tracking mode - return to edge detection"""
@@ -250,32 +235,23 @@ class EdgeDetector:
         """Handle mouse movement events"""
         self.last_position = (x, y)
         
-        # If in remote mode, calculate movement deltas and keep cursor centered
+        # If in remote mode, just track position - keep it simple!
         if self.is_remote_mode:
             if self._last_raw_position is not None:
-                # Calculate movement delta
+                # Calculate movement delta for callback
                 dx = x - self._last_raw_position[0]
                 dy = y - self._last_raw_position[1]
                 
-                # Only send if there's actual movement and within throttle time
+                # Send movement update if there's actual movement
                 if (dx != 0 or dy != 0):
                     current_time = time.time()
                     if current_time - self.last_sent_time >= self.movement_throttle:
                         if self.on_mouse_delta:
-                            # Transform deltas for aspect ratio correction
-                            transformed_dx, transformed_dy = self._transform_delta(dx, dy)
-                            self.on_mouse_delta(transformed_dx, transformed_dy)
+                            self.on_mouse_delta(dx, dy)
                         self.last_sent_time = current_time
             
-            # Keep mouse centered to prevent edge hitting - this is key for smooth capture!
-            center_x = self.screen_width // 2
-            center_y = self.screen_height // 2
-            if abs(x - center_x) > 50 or abs(y - center_y) > 50:
-                if self._mouse_controller:
-                    self._mouse_controller.position = (center_x, center_y)
-                    self._last_raw_position = (center_x, center_y)
-            else:
-                self._last_raw_position = (x, y)
+            # Update position for next calculation
+            self._last_raw_position = (x, y)
             return  # Skip edge detection when in remote mode
         
         # Normal edge detection logic
@@ -295,31 +271,6 @@ class EdgeDetector:
             
             if self.on_edge_left:
                 self.on_edge_left()
-        
-    def _transform_delta(self, dx: int, dy: int) -> tuple[int, int]:
-        """Transform mouse deltas to account for aspect ratio differences"""
-        if not hasattr(self, '_remote_width') or not hasattr(self, '_remote_height'):
-            return dx, dy
-            
-        # Calculate aspect ratios
-        local_aspect = self.screen_width / self.screen_height
-        remote_aspect = self._remote_width / self._remote_height
-        
-        # Adjust deltas to maintain consistent movement speed across different aspect ratios
-        if local_aspect > remote_aspect:
-            # Local screen is wider - reduce horizontal movement
-            scale_x = remote_aspect / local_aspect
-            scale_y = 1.0
-        else:
-            # Remote screen is wider - reduce vertical movement  
-            scale_x = 1.0
-            scale_y = local_aspect / remote_aspect
-            
-        return int(dx * scale_x), int(dy * scale_y)
-        
-    def _continue_edge_detection(self, x: int, y: int):
-        """Continue normal edge detection logic"""
-        current_at_edge = self._is_at_trigger_edge(x, y)
         
         if current_at_edge and not self.is_at_edge:
             # Mouse just reached the edge
