@@ -130,6 +130,8 @@ class ZedLinkApp:
         # Setup callbacks
         self.edge_detector.on_edge_triggered = self._on_edge_triggered
         self.edge_detector.on_edge_left = self._on_edge_left
+        self.edge_detector.on_mouse_move = self._on_mouse_move  # New: for remote mode
+        self.edge_detector.on_escape_pressed = self._on_escape_pressed  # New: for exiting remote mode
         
         self.logger.info(f"Edge detector configured: {screen_width}x{screen_height}, "
                         f"trigger={self.config.trigger_edge}, delay={self.config.trigger_delay}s")
@@ -155,6 +157,35 @@ class ZedLinkApp:
         if self.is_remote_mode:
             self.logger.info("Left edge area, staying in remote mode")
             # Could implement return-to-local logic here
+            
+    def _on_mouse_move(self, x: int, y: int):
+        """Handle mouse movement in remote mode"""
+        if not self.is_remote_mode:
+            return
+            
+        # Convert to relative coordinates and send to server
+        if self.edge_detector:
+            x_ratio = x / self.edge_detector.screen_width
+            y_ratio = y / self.edge_detector.screen_height
+            
+            # Clamp to 0.0-1.0 range
+            x_ratio = max(0.0, min(1.0, x_ratio))
+            y_ratio = max(0.0, min(1.0, y_ratio))
+            
+            self.client.send_mouse_move(x_ratio, y_ratio)
+            
+    def _on_escape_pressed(self):
+        """Handle escape key press to exit remote mode"""
+        if self.is_remote_mode:
+            self.logger.info("Escape pressed - exiting remote mode")
+            self._exit_remote_mode()
+            
+            # Disconnect from server
+            if self.client.is_connected():
+                self.client.disconnect()
+                
+            if self.config.show_notifications:
+                print("⌨️  Pressed Escape - remote control deactivated")
             
     def _connect_to_server(self) -> bool:
         """Connect to the ZedLink server with auto-discovery fallback"""
@@ -187,6 +218,7 @@ class ZedLinkApp:
             return
             
         self.is_remote_mode = True
+        self.edge_detector.enter_remote_mode()  # Switch edge detector to remote mode
         self.logger.info(f"🖱️  Entering remote mode at {entry_position}")
         
         if self.config.show_notifications:
@@ -203,6 +235,8 @@ class ZedLinkApp:
             return
             
         self.is_remote_mode = False
+        if self.edge_detector:
+            self.edge_detector.exit_remote_mode()  # Switch back to edge detection mode
         self.logger.info("🖱️  Exiting remote mode")
         
         if self.config.show_notifications:

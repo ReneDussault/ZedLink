@@ -14,11 +14,15 @@ import logging
 try:
     from pynput import mouse
     from pynput.mouse import Listener as MouseListener
+    from pynput import keyboard
+    from pynput.keyboard import Listener as KeyboardListener
     PYNPUT_AVAILABLE = True
 except ImportError:
     # Don't print warning here - let the calling code handle it
     mouse = None
     MouseListener = None
+    keyboard = None
+    KeyboardListener = None
     PYNPUT_AVAILABLE = False
 
 
@@ -66,15 +70,19 @@ class EdgeDetector:
         # State tracking
         self.is_monitoring = False
         self.is_at_edge = False
+        self.is_remote_mode = False  # New: track if we're in remote mode
         self.edge_start_time = None
         self.last_position = (0, 0)
         
         # Callbacks
         self.on_edge_triggered: Optional[Callable[[TriggerEdge, Tuple[int, int]], None]] = None
         self.on_edge_left: Optional[Callable[[], None]] = None
+        self.on_mouse_move: Optional[Callable[[int, int], None]] = None  # New: for remote mode
+        self.on_escape_pressed: Optional[Callable[[], None]] = None  # New: for exiting remote mode
         
         # Threading
         self._mouse_listener = None
+        self._keyboard_listener = None  # New: for escape key
         self._monitor_thread = None
         self._stop_event = threading.Event()
         
@@ -96,6 +104,16 @@ class EdgeDetector:
         """Change the trigger delay in seconds"""
         self.trigger_delay = max(0.05, min(2.0, delay))  # Clamp between 50ms and 2s
         self.logger.info(f"Trigger delay set to: {self.trigger_delay}s")
+        
+    def enter_remote_mode(self):
+        """Enter remote tracking mode - continuously send mouse positions"""
+        self.is_remote_mode = True
+        self.logger.info("Entered remote tracking mode")
+        
+    def exit_remote_mode(self):
+        """Exit remote tracking mode - return to edge detection"""
+        self.is_remote_mode = False
+        self.logger.info("Exited remote tracking mode")
         
     def _is_at_trigger_edge(self, x: int, y: int) -> bool:
         """Check if the mouse position is at the configured trigger edge"""
@@ -122,6 +140,13 @@ class EdgeDetector:
         """Handle mouse movement events"""
         self.last_position = (x, y)
         
+        # If in remote mode, send all mouse movements
+        if self.is_remote_mode:
+            if self.on_mouse_move:
+                self.on_mouse_move(x, y)
+            return  # Skip edge detection when in remote mode
+        
+        # Normal edge detection logic
         current_at_edge = self._is_at_trigger_edge(x, y)
         
         if current_at_edge and not self.is_at_edge:
@@ -139,6 +164,20 @@ class EdgeDetector:
             # Notify that we left the edge
             if self.on_edge_left:
                 self.on_edge_left()
+                
+    def _on_key_press(self, key):
+        """Handle keyboard key press events"""
+        if not self.is_remote_mode:
+            return
+            
+        try:
+            # Check for Escape key to exit remote mode
+            if keyboard and hasattr(keyboard, 'Key') and key == keyboard.Key.esc:
+                if self.on_escape_pressed:
+                    self.on_escape_pressed()
+        except AttributeError:
+            # Handle case where key doesn't have expected attributes
+            pass
                 
     def _monitor_edge_trigger(self):
         """Monitor for edge trigger activation in a separate thread"""
@@ -186,6 +225,11 @@ class EdgeDetector:
         self._mouse_listener = MouseListener(on_move=self._on_mouse_move)
         self._mouse_listener.start()
         
+        # Start keyboard listener for escape key
+        if KeyboardListener:
+            self._keyboard_listener = KeyboardListener(on_press=self._on_key_press)
+            self._keyboard_listener.start()
+        
         # Start monitoring thread
         self._monitor_thread = threading.Thread(target=self._monitor_edge_trigger, daemon=True)
         self._monitor_thread.start()
@@ -206,6 +250,11 @@ class EdgeDetector:
         if self._mouse_listener:
             self._mouse_listener.stop()
             self._mouse_listener = None
+            
+        # Stop keyboard listener
+        if self._keyboard_listener:
+            self._keyboard_listener.stop()
+            self._keyboard_listener = None
             
         # Wait for monitor thread
         if self._monitor_thread:
