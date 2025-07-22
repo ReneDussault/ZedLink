@@ -7,20 +7,217 @@ Controls remote PC mouse from this machine via edge triggers and hotkeys.
 import sys
 import os
 import time
+import logging
+import signal
+from typing import Tuple
 
 # Add shared module to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
+shared_path = os.path.join(os.path.dirname(__file__), '..')
+if shared_path not in sys.path:
+    sys.path.append(shared_path)
+
+# Add current directory for local imports  
+current_path = os.path.dirname(__file__)
+if current_path not in sys.path:
+    sys.path.append(current_path)
 
 from network_client import ZedLinkClient
+from config import get_config, ZedLinkConfig
+from edge_detector import EdgeDetector, TriggerEdge
+
+class ZedLinkApp:
+    """Main ZedLink application with edge detection and remote control"""
+    
+    def __init__(self):
+        self.config = get_config()
+        self.client = ZedLinkClient()
+        self.edge_detector = None
+        self.is_running = False
+        self.is_remote_mode = False
+        
+        # Setup logging
+        level = logging.DEBUG if self.config.debug_mode else logging.INFO
+        logging.basicConfig(
+            level=level,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        self.logger = logging.getLogger(__name__)
+        
+        # Setup signal handlers for graceful shutdown
+        signal.signal(signal.SIGINT, self._signal_handler)
+        if hasattr(signal, 'SIGTERM'):
+            signal.signal(signal.SIGTERM, self._signal_handler)
+            
+    def _signal_handler(self, signum, frame):
+        """Handle shutdown signals"""
+        self.logger.info("Shutdown signal received")
+        self.stop()
+        
+    def _get_screen_dimensions(self) -> Tuple[int, int]:
+        """Get current screen dimensions"""
+        try:
+            import tkinter as tk
+            root = tk.Tk()
+            width = root.winfo_screenwidth()
+            height = root.winfo_screenheight()
+            root.destroy()
+            return width, height
+        except Exception:
+            # Fallback to common resolution
+            self.logger.warning("Could not detect screen size, using 1920x1080")
+            return 1920, 1080
+            
+    def _setup_edge_detector(self):
+        """Initialize and configure the edge detector"""
+        screen_width, screen_height = self._get_screen_dimensions()
+        
+        self.edge_detector = EdgeDetector(
+            screen_width=screen_width,
+            screen_height=screen_height,
+            trigger_edge=TriggerEdge(self.config.trigger_edge),
+            trigger_delay=self.config.trigger_delay,
+            edge_threshold=self.config.edge_threshold
+        )
+        
+        # Setup callbacks
+        self.edge_detector.on_edge_triggered = self._on_edge_triggered
+        self.edge_detector.on_edge_left = self._on_edge_left
+        
+        self.logger.info(f"Edge detector configured: {screen_width}x{screen_height}, "
+                        f"trigger={self.config.trigger_edge}, delay={self.config.trigger_delay}s")
+        
+    def _on_edge_triggered(self, edge: TriggerEdge, position: Tuple[int, int]):
+        """Handle edge trigger activation"""
+        if self.is_remote_mode:
+            self.logger.debug("Already in remote mode, ignoring edge trigger")
+            return
+            
+        self.logger.info(f"Edge triggered: {edge.value} at {position}")
+        
+        # Connect to server if not connected
+        if not self.client.is_connected():
+            if not self._connect_to_server():
+                return
+                
+        # Enter remote control mode
+        self._enter_remote_mode(position)
+        
+    def _on_edge_left(self):
+        """Handle leaving edge area"""
+        if self.is_remote_mode:
+            self.logger.info("Left edge area, staying in remote mode")
+            # Could implement return-to-local logic here
+            
+    def _connect_to_server(self) -> bool:
+        """Connect to the ZedLink server"""
+        self.logger.info(f"Connecting to server at {self.config.server_host}:{self.config.server_port}")
+        
+        if self.client.connect(self.config.server_host, self.config.server_port):
+            self.logger.info("✅ Connected to server")
+            return True
+        else:
+            self.logger.error("❌ Failed to connect to server")
+            if self.config.show_notifications:
+                print("💡 Make sure the ZedLink server is running on the remote PC")
+            return False
+            
+    def _enter_remote_mode(self, entry_position: Tuple[int, int]):
+        """Enter remote control mode"""
+        if not self.edge_detector:
+            self.logger.error("Edge detector not initialized")
+            return
+            
+        self.is_remote_mode = True
+        self.logger.info(f"🖱️  Entering remote mode at {entry_position}")
+        
+        if self.config.show_notifications:
+            print(f"🔗 Remote control active - controlling {self.config.server_host}")
+            
+        # Send initial position to remote
+        x_ratio = entry_position[0] / self.edge_detector.screen_width
+        y_ratio = entry_position[1] / self.edge_detector.screen_height
+        self.client.send_mouse_move(x_ratio, y_ratio)
+        
+    def _exit_remote_mode(self):
+        """Exit remote control mode"""
+        if not self.is_remote_mode:
+            return
+            
+        self.is_remote_mode = False
+        self.logger.info("🖱️  Exiting remote mode")
+        
+        if self.config.show_notifications:
+            print("🔌 Remote control deactivated")
+            
+    def start(self):
+        """Start the ZedLink application"""
+        self.logger.info("🚀 Starting ZedLink Client")
+        
+        if self.config.show_notifications:
+            print("🖱️  ZedLink Client v3.0")
+            print(f"🎯 Trigger: {self.config.trigger_edge} edge")
+            print(f"⏱️  Delay: {self.config.trigger_delay}s")
+            print(f"🎯 Server: {self.config.server_host}:{self.config.server_port}")
+            
+        # Setup edge detection
+        self._setup_edge_detector()
+        
+        if not self.edge_detector:
+            self.logger.error("Failed to setup edge detector")
+            return
+        
+        # Start monitoring
+        try:
+            self.edge_detector.start_monitoring()
+            self.is_running = True
+            
+            self.logger.info("✅ Edge detection active")
+            if self.config.show_notifications:
+                print("✅ Ready! Move mouse to screen edge to control remote PC")
+                print("Press Ctrl+C to stop")
+                
+            # Main loop
+            while self.is_running:
+                time.sleep(0.1)
+                
+                # Could add periodic tasks here
+                # - Connection health checks
+                # - Configuration reload
+                # - Statistics collection
+                
+        except Exception as e:
+            self.logger.error(f"Error in main loop: {e}")
+            self.stop()
+            
+    def stop(self):
+        """Stop the ZedLink application"""
+        if not self.is_running:
+            return
+            
+        self.logger.info("🛑 Stopping ZedLink Client")
+        self.is_running = False
+        
+        # Stop edge detection
+        if self.edge_detector:
+            self.edge_detector.stop_monitoring()
+            
+        # Disconnect from server
+        if self.client.is_connected():
+            self.client.disconnect()
+            
+        if self.config.show_notifications:
+            print("👋 ZedLink Client stopped")
+
 
 def test_basic_connection():
-    """Test basic client-server communication"""
+    """Test basic client-server communication (legacy test)"""
     print("🔗 Testing connection to ZedLink Server...")
     
+    config = get_config()
     client = ZedLinkClient()
     
     # Try to connect
-    if client.connect():
+    if client.connect(config.server_host, config.server_port):
         print("✅ Connected successfully!")
         
         # Send a test mouse movement
@@ -38,14 +235,23 @@ def test_basic_connection():
 
 def main():
     """Main entry point for ZedLink Client"""
-    print("🖱️  ZedLink Client starting...")
-    print("📡 Basic networking architecture ready!")
+    if len(sys.argv) > 1 and sys.argv[1] == "--test":
+        # Legacy test mode
+        print("🔗 Running legacy connection test...")
+        test_basic_connection()
+        return
+        
+    # Normal application mode
+    app = ZedLinkApp()
     
-    # For now, just test the connection
-    test_basic_connection()
-    
-    print("\n🚧 Phase 2: Basic networking implemented!")
-    print("📋 Next: Edge detection and hotkey systems")
+    try:
+        app.start()
+    except KeyboardInterrupt:
+        app.logger.info("Interrupted by user")
+    except Exception as e:
+        app.logger.error(f"Application error: {e}")
+    finally:
+        app.stop()
 
 if __name__ == "__main__":
     main()

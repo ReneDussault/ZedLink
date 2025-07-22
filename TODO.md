@@ -43,20 +43,20 @@ A lightweight tool to control a Linux Mint PC's mouse pointer from a Windows/Ubu
   - [x] Click event messages
   - [x] Connection handshake protocol
 
-### Phase 3: Edge Detection System
+### Phase 3: Edge Detection System ✅ Complete
 
-- [ ] **Edge Trigger Logic**
+- [x] **Edge Trigger Logic**
 
-  - [ ] Monitor mouse position continuously
-  - [ ] Detect edge collision with configurable delay
-  - [ ] Prevent false triggers from fast movements
-  - [ ] Smooth transition animations
+  - [x] Monitor mouse position continuously
+  - [x] Detect edge collision with configurable delay
+  - [x] Prevent false triggers from fast movements
+  - [x] Smooth transition animations
 
-- [ ] **Configuration System**
-  - [ ] Configurable trigger edge (top/bottom/left/right)
-  - [ ] Adjustable trigger delay (50-500ms)
-  - [ ] Return method selection (opposite edge/specific edge)
-  - [ ] Save/load user preferences
+- [x] **Configuration System**
+  - [x] Configurable trigger edge (top/bottom/left/right)
+  - [x] Adjustable trigger delay (50-500ms)
+  - [x] Return method selection (opposite edge/specific edge)
+  - [x] Save/load user preferences
 
 ### Phase 4: Hotkey System
 

@@ -8,7 +8,14 @@ import json
 import logging
 import threading
 import time
+import sys
+import os
 from typing import Optional, Callable
+
+# Add shared module to path for imports
+shared_path = os.path.join(os.path.dirname(__file__), '..')
+if shared_path not in sys.path:
+    sys.path.append(shared_path)
 
 from shared.protocol import Protocol
 
@@ -30,14 +37,18 @@ class ZedLinkClient:
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
     
-    def connect(self) -> bool:
+    def connect(self, host: Optional[str] = None, port: Optional[int] = None) -> bool:
         """Connect to the ZedLink server"""
+        # Use provided parameters or fall back to instance defaults
+        server_ip = host if host is not None else self.server_ip
+        server_port = port if port is not None else self.server_port
+        
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.settimeout(5)  # 5 second timeout
             
-            self.logger.info(f"Connecting to {self.server_ip}:{self.server_port}...")
-            self.socket.connect((self.server_ip, self.server_port))
+            self.logger.info(f"Connecting to {server_ip}:{server_port}...")
+            self.socket.connect((server_ip, server_port))
             
             self.connected = True
             self.running = True

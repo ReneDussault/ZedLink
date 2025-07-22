@@ -13,25 +13,25 @@ A lightweight tool to control a remote PC's mouse pointer over the network using
 
 ## Platform Support
 
-| Client (Controller) | Server (Remote PC) | Status |
-|-------------------|------------------|--------|
-| Windows 10/11 | Linux Mint/Ubuntu | ✅ Primary |
-| Linux Mint/Ubuntu | Linux Mint/Ubuntu | ✅ Excellent |
-| Windows 10/11 | Windows 10/11 | ✅ Works |
-| macOS | Any | ⚠️ Untested |
+| Client (Controller) | Server (Remote PC) | Status       |
+| ------------------- | ------------------ | ------------ |
+| Windows 10/11       | Linux              | ✅ Primary   |
+| Linux               | Linux              | ✅ Excellent |
+| Windows 10/11       | Windows 10/11      | ✅ Works     |
+| macOS               | Any                | ⚠️ Untested  |
 
 See `COMPATIBILITY.md` for detailed platform information.
 
 ## Quick Start
 
-### Server (Linux Mint - Remote PC)
+### Server (Remote PC)
 
 ```bash
 cd server/
 python server.py
 ```
 
-### Client (Windows/Ubuntu - Main PC)
+### Client (Controller PC)
 
 ```bash
 cd client/
