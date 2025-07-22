@@ -98,6 +98,34 @@ class MouseController:
         except Exception as e:
             self.logger.error(f"Error moving mouse: {e}")
     
+    def move_relative(self, dx: float, dy: float):
+        """Move mouse relative to current position by delta ratios (0.0-1.0)"""
+        if not self.controller:
+            self.logger.warning("Mouse controller not available")
+            return
+        
+        try:
+            # Convert relative deltas to absolute pixel deltas
+            delta_x = int(dx * self.screen_width)
+            delta_y = int(dy * self.screen_height)
+            
+            # Get current position
+            current_x, current_y = self.controller.position
+            
+            # Calculate new position
+            new_x = current_x + delta_x
+            new_y = current_y + delta_y
+            
+            # Clamp to screen bounds
+            new_x = max(0, min(new_x, self.screen_width - 1))
+            new_y = max(0, min(new_y, self.screen_height - 1))
+            
+            self.controller.position = (new_x, new_y)
+            self.logger.debug(f"Mouse moved by delta ({delta_x}, {delta_y}) to ({new_x}, {new_y})")
+        
+        except Exception as e:
+            self.logger.error(f"Error moving mouse relatively: {e}")
+    
     def click(self, button: str, pressed: bool):
         """Handle mouse click events"""
         if not self.controller:

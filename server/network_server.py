@@ -100,6 +100,12 @@ class ZedLinkServer:
                 self.logger.debug(f"Mouse move: ({x:.3f}, {y:.3f})")
                 if self.mouse_controller:
                     self.mouse_controller.move_to(x, y)
+            elif msg_type == "mouse_delta":
+                # Move mouse relative to current position
+                dx, dy = data.get("dx", 0), data.get("dy", 0)
+                self.logger.debug(f"Mouse delta: ({dx:.4f}, {dy:.4f})")
+                if self.mouse_controller:
+                    self.mouse_controller.move_relative(dx, dy)
             elif msg_type == "mouse_click":
                 # Handle mouse click
                 button = data.get("button", "left")

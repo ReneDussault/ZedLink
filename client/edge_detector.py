@@ -92,6 +92,7 @@ class EdgeDetector:
         self.on_edge_triggered: Optional[Callable[[TriggerEdge, Tuple[int, int]], None]] = None
         self.on_edge_left: Optional[Callable[[], None]] = None
         self.on_mouse_move: Optional[Callable[[int, int], None]] = None  # New: for remote mode
+        self.on_mouse_delta: Optional[Callable[[int, int], None]] = None  # New: for relative movement
         self.on_mouse_click: Optional[Callable[[int, int, str, bool], None]] = None  # New: for clicks
         self.on_escape_pressed: Optional[Callable[[], None]] = None  # New: for exiting remote mode
         
@@ -111,6 +112,8 @@ class EdgeDetector:
         # Mouse capture state
         self._cursor_hidden = False
         self._capture_bounds = None  # Rectangle to confine cursor
+        self._remote_mode_start_pos = None  # Position when remote mode started
+        self._last_raw_position = None  # For calculating deltas
         
         # Logging
         self.logger = logging.getLogger(__name__)
@@ -190,6 +193,9 @@ class EdgeDetector:
         # Capture mouse to prevent local movement
         if self._mouse_controller:
             current_pos = self._mouse_controller.position
+            self._remote_mode_start_pos = current_pos
+            self._last_raw_position = current_pos
+            
             # Hide cursor and confine it to a small area at the edge
             self._hide_cursor()
             self._confine_cursor(current_pos[0], current_pos[1], 2, 2)
@@ -197,6 +203,8 @@ class EdgeDetector:
     def exit_remote_mode(self):
         """Exit remote tracking mode - return to edge detection"""
         self.is_remote_mode = False
+        self._remote_mode_start_pos = None
+        self._last_raw_position = None
         self.logger.info("Exited remote tracking mode")
         
         # Release mouse capture
@@ -228,13 +236,23 @@ class EdgeDetector:
         """Handle mouse movement events"""
         self.last_position = (x, y)
         
-        # If in remote mode, send all mouse movements (with throttling)
+        # If in remote mode, calculate movement deltas instead of absolute position
         if self.is_remote_mode:
-            current_time = time.time()
-            if current_time - self.last_sent_time >= self.movement_throttle:
-                if self.on_mouse_move:
-                    self.on_mouse_move(x, y)
-                self.last_sent_time = current_time
+            if self._last_raw_position is not None:
+                # Calculate movement delta
+                dx = x - self._last_raw_position[0]
+                dy = y - self._last_raw_position[1]
+                
+                # Only send if there's actual movement and within throttle time
+                if (dx != 0 or dy != 0):
+                    current_time = time.time()
+                    if current_time - self.last_sent_time >= self.movement_throttle:
+                        if self.on_mouse_delta:
+                            self.on_mouse_delta(dx, dy)
+                        self.last_sent_time = current_time
+            
+            # Update last position for next delta calculation
+            self._last_raw_position = (x, y)
             return  # Skip edge detection when in remote mode
         
         # Normal edge detection logic

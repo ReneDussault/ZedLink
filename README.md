@@ -20,23 +20,28 @@ A lightweight tool to control a remote PC's mouse pointer over the network using
 | Windows 10/11       | Windows 10/11      | ✅ Works     |
 | macOS               | Any                | ⚠️ Untested  |
 
-See `COMPATIBILITY.md` for detailed platform information.
-
 ## Quick Start
 
-### Server (Remote PC)
+### Installation steps
 
-```bash
-cd server/
-python server.py
-```
+Create a virtual environment  
+`python -m venv .venv`
 
-### Client (Controller PC)
+Depending on platform  
+Windows  
+`.\.venv\Scripts\Activate.ps1`
 
-```bash
-cd client/
-python main.py
-```
+Linux  
+`source .venv/bin/activate`
+
+Then  
+`pip install -r requirements.txt`
+
+On the machine to be controlled  
+`python ./server/server.py`
+
+On the machine that is controlling  
+`python ./client/main.py`
 
 ## Configuration
 

@@ -93,6 +93,14 @@ class ZedLinkClient:
         
         message = Protocol.create_mouse_move(x, y)
         return self._send_message(message)
+        
+    def send_mouse_delta(self, dx: float, dy: float):
+        """Send relative mouse movement command to server"""
+        if not self.connected:
+            return False
+        
+        message = Protocol.create_mouse_delta(dx, dy)
+        return self._send_message(message)
     
     def send_mouse_click(self, x: float, y: float, button: str, pressed: bool):
         """Send mouse click command to server"""

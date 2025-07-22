@@ -131,6 +131,7 @@ class ZedLinkApp:
         self.edge_detector.on_edge_triggered = self._on_edge_triggered
         self.edge_detector.on_edge_left = self._on_edge_left
         self.edge_detector.on_mouse_move = self._on_mouse_move  # New: for remote mode
+        self.edge_detector.on_mouse_delta = self._on_mouse_delta  # New: for relative movement
         self.edge_detector.on_mouse_click = self._on_mouse_click  # New: for clicks
         self.edge_detector.on_escape_pressed = self._on_escape_pressed  # New: for exiting remote mode
         
@@ -174,6 +175,22 @@ class ZedLinkApp:
             y_ratio = max(0.0, min(1.0, y_ratio))
             
             self.client.send_mouse_move(x_ratio, y_ratio)
+            
+    def _on_mouse_delta(self, dx: int, dy: int):
+        """Handle relative mouse movement in remote mode"""
+        if not self.is_remote_mode:
+            return
+            
+        # Send relative movement to server
+        if self.client.is_connected():
+            # Convert pixel deltas to relative deltas (normalize by screen size)
+            if self.edge_detector:
+                dx_ratio = dx / self.edge_detector.screen_width
+                dy_ratio = dy / self.edge_detector.screen_height
+                
+                # Send as a mouse delta message (we'll need to add this to protocol)
+                success = self.client.send_mouse_delta(dx_ratio, dy_ratio)
+                self.logger.debug(f"Sent delta: ({dx}, {dy}) -> ({dx_ratio:.4f}, {dy_ratio:.4f})")
             
     def _on_mouse_click(self, x: int, y: int, button: str, pressed: bool):
         """Handle mouse click in remote mode"""

@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional
 class MessageType:
     """Message type constants"""
     MOUSE_MOVE = "mouse_move"
+    MOUSE_DELTA = "mouse_delta"  # New: for relative movement
     MOUSE_CLICK = "mouse_click"
     MOUSE_SCROLL = "mouse_scroll"
     HANDSHAKE = "handshake"
@@ -25,6 +26,16 @@ class Protocol:
             "type": MessageType.MOUSE_MOVE,
             "x": x,  # Relative coordinates 0.0-1.0
             "y": y,
+            "timestamp": time.time()
+        }
+        
+    @staticmethod
+    def create_mouse_delta(dx: float, dy: float) -> Dict[str, Any]:
+        """Create a relative mouse movement message"""
+        return {
+            "type": MessageType.MOUSE_DELTA,
+            "dx": dx,  # Relative movement delta
+            "dy": dy,
             "timestamp": time.time()
         }
     
