@@ -183,14 +183,18 @@ class ZedLinkApp:
             
         # Send relative movement to server
         if self.client.is_connected():
-            # Convert pixel deltas to relative deltas (normalize by screen size)
+            # Convert pixel deltas to relative deltas with sensitivity multiplier
             if self.edge_detector:
-                dx_ratio = dx / self.edge_detector.screen_width
-                dy_ratio = dy / self.edge_detector.screen_height
+                # Apply sensitivity multiplier to make movement more responsive
+                sensitivity = 3.0  # Increase this to make mouse more sensitive
                 
-                # Send as a mouse delta message (we'll need to add this to protocol)
+                dx_ratio = (dx * sensitivity) / self.edge_detector.screen_width
+                dy_ratio = (dy * sensitivity) / self.edge_detector.screen_height
+                
+                # Send as a mouse delta message
                 success = self.client.send_mouse_delta(dx_ratio, dy_ratio)
-                self.logger.debug(f"Sent delta: ({dx}, {dy}) -> ({dx_ratio:.4f}, {dy_ratio:.4f})")
+                if dx != 0 or dy != 0:  # Only log actual movement
+                    self.logger.debug(f"Sent delta: ({dx}, {dy}) -> ({dx_ratio:.4f}, {dy_ratio:.4f})")
             
     def _on_mouse_click(self, x: int, y: int, button: str, pressed: bool):
         """Handle mouse click in remote mode"""
