@@ -99,15 +99,18 @@ class MouseController:
             self.logger.error(f"Error moving mouse: {e}")
     
     def move_relative(self, dx: float, dy: float):
-        """Move mouse relative to current position by delta ratios (0.0-1.0)"""
+        """Move mouse relative to current position by raw pixel deltas"""
         if not self.controller:
             self.logger.warning("Mouse controller not available")
             return
         
         try:
-            # Convert relative deltas to absolute pixel deltas
-            delta_x = int(dx * self.screen_width)
-            delta_y = int(dy * self.screen_height)
+            # Use raw pixel deltas directly - no need to convert from ratios
+            # Apply a sensitivity multiplier for fine-tuning
+            sensitivity = 1.0  # Adjust this value to fine-tune movement speed
+            
+            delta_x = int(dx * sensitivity)
+            delta_y = int(dy * sensitivity)
             
             # Get current position
             current_x, current_y = self.controller.position
@@ -121,7 +124,7 @@ class MouseController:
             new_y = max(0, min(new_y, self.screen_height - 1))
             
             self.controller.position = (new_x, new_y)
-            self.logger.debug(f"Mouse moved by delta ({delta_x}, {delta_y}) to ({new_x}, {new_y})")
+            self.logger.debug(f"Mouse moved by raw delta ({delta_x}, {delta_y}) to ({new_x}, {new_y})")
         
         except Exception as e:
             self.logger.error(f"Error moving mouse relatively: {e}")
