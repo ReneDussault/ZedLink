@@ -10,6 +10,7 @@ import threading
 from typing import Callable, Optional, Tuple, Dict, Any
 from enum import Enum
 import logging
+import platform
 
 try:
     from pynput import mouse
@@ -24,6 +25,17 @@ except ImportError:
     keyboard = None
     KeyboardListener = None
     PYNPUT_AVAILABLE = False
+
+# Platform-specific imports for mouse capture
+try:
+    if platform.system() == "Windows":
+        import ctypes
+        from ctypes import wintypes
+        WINDOWS_CAPTURE_AVAILABLE = True
+    else:
+        WINDOWS_CAPTURE_AVAILABLE = False
+except ImportError:
+    WINDOWS_CAPTURE_AVAILABLE = False
 
 
 class TriggerEdge(Enum):
@@ -74,7 +86,7 @@ class EdgeDetector:
         self.edge_start_time = None
         self.last_position = (0, 0)
         self.last_sent_time = 0  # For throttling mouse movements
-        self.movement_throttle = 0.016  # ~60 FPS (16ms between updates)
+        self.movement_throttle = 0.008  # ~120 FPS (8ms between updates) - reduced lag
         
         # Callbacks
         self.on_edge_triggered: Optional[Callable[[TriggerEdge, Tuple[int, int]], None]] = None
@@ -95,9 +107,64 @@ class EdgeDetector:
             self._mouse_controller = mouse.Controller()
         else:
             self._mouse_controller = None
+            
+        # Mouse capture state
+        self._cursor_hidden = False
+        self._capture_bounds = None  # Rectangle to confine cursor
         
         # Logging
         self.logger = logging.getLogger(__name__)
+        
+    def _hide_cursor(self):
+        """Hide the local cursor (Windows-specific for now)"""
+        if WINDOWS_CAPTURE_AVAILABLE and not self._cursor_hidden:
+            try:
+                # Hide cursor using Windows API
+                ctypes.windll.user32.ShowCursor(False)
+                self._cursor_hidden = True
+                self.logger.debug("Cursor hidden")
+            except Exception as e:
+                self.logger.warning(f"Could not hide cursor: {e}")
+                
+    def _show_cursor(self):
+        """Show the local cursor"""
+        if WINDOWS_CAPTURE_AVAILABLE and self._cursor_hidden:
+            try:
+                # Show cursor using Windows API
+                ctypes.windll.user32.ShowCursor(True)
+                self._cursor_hidden = False
+                self.logger.debug("Cursor shown")
+            except Exception as e:
+                self.logger.warning(f"Could not show cursor: {e}")
+                
+    def _confine_cursor(self, x: int, y: int, width: int = 1, height: int = 1):
+        """Confine cursor to a small area (Windows-specific)"""
+        if WINDOWS_CAPTURE_AVAILABLE:
+            try:
+                # Define a small rectangle to confine the cursor
+                rect = wintypes.RECT()
+                rect.left = x
+                rect.top = y
+                rect.right = x + width
+                rect.bottom = y + height
+                
+                # Confine cursor to this rectangle
+                ctypes.windll.user32.ClipCursor(ctypes.byref(rect))
+                self._capture_bounds = (x, y, width, height)
+                self.logger.debug(f"Cursor confined to ({x}, {y}, {width}, {height})")
+            except Exception as e:
+                self.logger.warning(f"Could not confine cursor: {e}")
+                
+    def _release_cursor(self):
+        """Release cursor confinement"""
+        if WINDOWS_CAPTURE_AVAILABLE and self._capture_bounds:
+            try:
+                # Release cursor confinement
+                ctypes.windll.user32.ClipCursor(None)
+                self._capture_bounds = None
+                self.logger.debug("Cursor confinement released")
+            except Exception as e:
+                self.logger.warning(f"Could not release cursor: {e}")
         
     def set_screen_dimensions(self, width: int, height: int):
         """Update screen dimensions (useful for resolution changes)"""
@@ -120,10 +187,21 @@ class EdgeDetector:
         self.is_remote_mode = True
         self.logger.info("Entered remote tracking mode")
         
+        # Capture mouse to prevent local movement
+        if self._mouse_controller:
+            current_pos = self._mouse_controller.position
+            # Hide cursor and confine it to a small area at the edge
+            self._hide_cursor()
+            self._confine_cursor(current_pos[0], current_pos[1], 2, 2)
+        
     def exit_remote_mode(self):
         """Exit remote tracking mode - return to edge detection"""
         self.is_remote_mode = False
         self.logger.info("Exited remote tracking mode")
+        
+        # Release mouse capture
+        self._release_cursor()
+        self._show_cursor()
         
     def _is_at_trigger_edge(self, x: int, y: int) -> bool:
         """Check if the mouse position is at the configured trigger edge"""
@@ -305,6 +383,10 @@ class EdgeDetector:
             self._monitor_thread.join(timeout=1.0)
             self._monitor_thread = None
             
+        # Release mouse capture if active
+        self._release_cursor()
+        self._show_cursor()
+        
         self.is_monitoring = False
         
     def get_status(self) -> Dict[str, Any]:
@@ -321,7 +403,13 @@ class EdgeDetector:
         
     def __del__(self):
         """Cleanup when detector is destroyed"""
-        self.stop_monitoring()
+        try:
+            self.stop_monitoring()
+            # Ensure cursor is released
+            self._release_cursor()
+            self._show_cursor()
+        except:
+            pass
 
 
 if __name__ == "__main__":
