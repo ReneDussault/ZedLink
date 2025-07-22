@@ -190,7 +190,7 @@ def auto_discover_and_configure():
     sys.path.append(client_dir)
     
     try:
-        from config import get_config_manager
+        from client.config import get_config_manager
         
         discovery = NetworkDiscovery()
         config_manager = get_config_manager()
