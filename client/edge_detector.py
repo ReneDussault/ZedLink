@@ -73,6 +73,8 @@ class EdgeDetector:
         self.is_remote_mode = False  # New: track if we're in remote mode
         self.edge_start_time = None
         self.last_position = (0, 0)
+        self.last_sent_time = 0  # For throttling mouse movements
+        self.movement_throttle = 0.016  # ~60 FPS (16ms between updates)
         
         # Callbacks
         self.on_edge_triggered: Optional[Callable[[TriggerEdge, Tuple[int, int]], None]] = None
@@ -118,17 +120,9 @@ class EdgeDetector:
         self.is_remote_mode = True
         self.logger.info("Entered remote tracking mode")
         
-        # Capture mouse to prevent local movement
-        if self._mouse_controller:
-            # Get current position to maintain it
-            current_pos = self._mouse_controller.position
-            self._captured_position = current_pos
-            self.logger.debug(f"Mouse captured at position: {current_pos}")
-        
     def exit_remote_mode(self):
         """Exit remote tracking mode - return to edge detection"""
         self.is_remote_mode = False
-        self._captured_position = None
         self.logger.info("Exited remote tracking mode")
         
     def _is_at_trigger_edge(self, x: int, y: int) -> bool:
@@ -156,16 +150,13 @@ class EdgeDetector:
         """Handle mouse movement events"""
         self.last_position = (x, y)
         
-        # If in remote mode, send all mouse movements
+        # If in remote mode, send all mouse movements (with throttling)
         if self.is_remote_mode:
-            if self.on_mouse_move:
-                self.on_mouse_move(x, y)
-                
-            # Keep local mouse captured at edge position
-            if self._mouse_controller and hasattr(self, '_captured_position') and self._captured_position:
-                if (x, y) != self._captured_position:
-                    # Reset mouse to captured position to prevent local movement
-                    self._mouse_controller.position = self._captured_position
+            current_time = time.time()
+            if current_time - self.last_sent_time >= self.movement_throttle:
+                if self.on_mouse_move:
+                    self.on_mouse_move(x, y)
+                self.last_sent_time = current_time
             return  # Skip edge detection when in remote mode
         
         # Normal edge detection logic
@@ -192,19 +183,27 @@ class EdgeDetector:
         if not self.is_remote_mode:
             return  # Only forward clicks in remote mode
             
+        self.logger.debug(f"Click detected: {button} {'press' if pressed else 'release'} at ({x}, {y})")
+        
         # Convert button to string
         button_name = "left"
-        if hasattr(button, 'name'):
-            button_name = button.name
-        elif str(button).endswith('left'):
-            button_name = "left"
-        elif str(button).endswith('right'):
-            button_name = "right"
-        elif str(button).endswith('middle'):
-            button_name = "middle"
+        try:
+            if hasattr(button, 'name'):
+                button_name = button.name.lower()
+            else:
+                button_str = str(button).lower()
+                if 'left' in button_str:
+                    button_name = "left"
+                elif 'right' in button_str:
+                    button_name = "right"
+                elif 'middle' in button_str:
+                    button_name = "middle"
+        except Exception as e:
+            self.logger.warning(f"Button parsing error: {e}, defaulting to 'left'")
             
         # Forward click to remote
         if self.on_mouse_click:
+            self.logger.debug(f"Forwarding click: {button_name} {'press' if pressed else 'release'}")
             self.on_mouse_click(x, y, button_name, pressed)
                 
     def _on_key_press(self, key):
