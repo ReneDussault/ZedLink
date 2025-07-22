@@ -25,6 +25,14 @@ from network_client import ZedLinkClient
 from config import get_config, ZedLinkConfig
 from edge_detector import EdgeDetector, TriggerEdge
 
+# Import auto-discovery
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'shared'))
+try:
+    from auto_discovery import NetworkDiscovery
+    AUTO_DISCOVERY_AVAILABLE = True
+except ImportError:
+    AUTO_DISCOVERY_AVAILABLE = False
+
 class ZedLinkApp:
     """Main ZedLink application with edge detection and remote control"""
     
@@ -47,6 +55,46 @@ class ZedLinkApp:
         signal.signal(signal.SIGINT, self._signal_handler)
         if hasattr(signal, 'SIGTERM'):
             signal.signal(signal.SIGTERM, self._signal_handler)
+            
+        # Initialize auto-discovery if available
+        self.auto_discovery = None
+        if AUTO_DISCOVERY_AVAILABLE:
+            try:
+                self.auto_discovery = NetworkDiscovery()
+            except Exception as e:
+                self.logger.warning(f"Auto-discovery initialization failed: {e}")
+            
+    def _try_auto_discovery(self) -> bool:
+        """Try to auto-discover and configure server connection"""
+        if not self.auto_discovery:
+            return False
+            
+        try:
+            self.logger.info("🔍 Attempting auto-discovery...")
+            if self.config.show_notifications:
+                print("🔍 Searching for ZedLink servers...")
+                
+            servers = self.auto_discovery.scan_for_zedlink_servers(timeout=0.5)
+            
+            if servers:
+                ip, port = servers[0]
+                self.logger.info(f"✅ Auto-discovered server: {ip}:{port}")
+                
+                # Update runtime config (don't save to file automatically)
+                self.config.server_host = ip
+                self.config.server_port = port
+                
+                if self.config.show_notifications:
+                    print(f"✅ Auto-discovered server: {ip}:{port}")
+                    
+                return True
+            else:
+                self.logger.info("❌ No servers found via auto-discovery")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Auto-discovery failed: {e}")
+            return False
             
     def _signal_handler(self, signum, frame):
         """Handle shutdown signals"""
@@ -109,17 +157,28 @@ class ZedLinkApp:
             # Could implement return-to-local logic here
             
     def _connect_to_server(self) -> bool:
-        """Connect to the ZedLink server"""
+        """Connect to the ZedLink server with auto-discovery fallback"""
         self.logger.info(f"Connecting to server at {self.config.server_host}:{self.config.server_port}")
         
+        # Try configured server first
         if self.client.connect(self.config.server_host, self.config.server_port):
-            self.logger.info("✅ Connected to server")
+            self.logger.info("✅ Connected to configured server")
             return True
-        else:
-            self.logger.error("❌ Failed to connect to server")
-            if self.config.show_notifications:
-                print("💡 Make sure the ZedLink server is running on the remote PC")
-            return False
+        
+        # If configured server fails, try auto-discovery
+        self.logger.info("❌ Configured server failed, trying auto-discovery...")
+        if self._try_auto_discovery():
+            # Try connecting to auto-discovered server
+            if self.client.connect(self.config.server_host, self.config.server_port):
+                self.logger.info("✅ Connected to auto-discovered server")
+                return True
+        
+        # Both failed
+        self.logger.error("❌ Failed to connect to any server")
+        if self.config.show_notifications:
+            print("💡 Make sure the ZedLink server is running on the remote PC")
+            print(f"💡 Tried: configured server and auto-discovery")
+        return False
             
     def _enter_remote_mode(self, entry_position: Tuple[int, int]):
         """Enter remote control mode"""
@@ -168,7 +227,9 @@ class ZedLinkApp:
         
         # Start monitoring
         try:
+            self.logger.debug("About to start edge monitoring...")
             self.edge_detector.start_monitoring()
+            self.logger.debug("Edge monitoring started successfully")
             self.is_running = True
             
             self.logger.info("✅ Edge detection active")
@@ -186,7 +247,9 @@ class ZedLinkApp:
                 # - Statistics collection
                 
         except Exception as e:
+            import traceback
             self.logger.error(f"Error in main loop: {e}")
+            self.logger.error(f"Full traceback: {traceback.format_exc()}")
             self.stop()
             
     def stop(self):

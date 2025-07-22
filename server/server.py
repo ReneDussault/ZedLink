@@ -45,7 +45,7 @@ def main():
     
     # Initialize components
     mouse_controller = MouseController()
-    server = ZedLinkServer()
+    server = ZedLinkServer(mouse_controller=mouse_controller)
     
     print(f"🚀 Server listening on port 9876")
     print("💡 Ready for client connections!")

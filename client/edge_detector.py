@@ -14,10 +14,12 @@ import logging
 try:
     from pynput import mouse
     from pynput.mouse import Listener as MouseListener
+    PYNPUT_AVAILABLE = True
 except ImportError:
-    print("Warning: pynput not available. Install with: pip install pynput")
+    # Don't print warning here - let the calling code handle it
     mouse = None
     MouseListener = None
+    PYNPUT_AVAILABLE = False
 
 
 class TriggerEdge(Enum):
@@ -167,7 +169,7 @@ class EdgeDetector:
             self.logger.warning("Edge detector already monitoring")
             return
             
-        if not mouse or not MouseListener:
+        if not PYNPUT_AVAILABLE:
             raise RuntimeError("pynput not available. Cannot start edge detection.")
             
         self.logger.info(f"Starting edge detection on {self.trigger_edge.value} edge")
@@ -178,6 +180,9 @@ class EdgeDetector:
         self.edge_start_time = None
         
         # Start mouse listener
+        if not MouseListener:
+            raise RuntimeError("MouseListener not available")
+            
         self._mouse_listener = MouseListener(on_move=self._on_mouse_move)
         self._mouse_listener.start()
         

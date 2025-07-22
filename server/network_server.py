@@ -12,9 +12,10 @@ from typing import Optional
 class ZedLinkServer:
     """TCP server that receives mouse commands and controls local mouse"""
     
-    def __init__(self, host: str = "0.0.0.0", port: int = 9876):
+    def __init__(self, host: str = "0.0.0.0", port: int = 9876, mouse_controller=None):
         self.host = host
         self.port = port
+        self.mouse_controller = mouse_controller
         self.server_socket: Optional[socket.socket] = None
         self.client_socket: Optional[socket.socket] = None
         self.running = False
@@ -94,14 +95,18 @@ class ZedLinkServer:
             if msg_type == "handshake":
                 self.logger.info("Handshake received from client")
             elif msg_type == "mouse_move":
-                # TODO: Move mouse to coordinates
+                # Move mouse to coordinates
                 x, y = data.get("x", 0), data.get("y", 0)
                 self.logger.debug(f"Mouse move: ({x:.3f}, {y:.3f})")
+                if self.mouse_controller:
+                    self.mouse_controller.move_to(x, y)
             elif msg_type == "mouse_click":
-                # TODO: Handle mouse click
+                # Handle mouse click
                 button = data.get("button", "left")
                 pressed = data.get("pressed", True)
                 self.logger.debug(f"Mouse {button} {'press' if pressed else 'release'}")
+                if self.mouse_controller:
+                    self.mouse_controller.click(button, pressed)
             else:
                 self.logger.warning(f"Unknown message type: {msg_type}")
         

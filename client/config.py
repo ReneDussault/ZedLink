@@ -29,7 +29,7 @@ class ZedLinkConfig:
     
     # Network Settings
     server_host: str = "192.168.1.100"
-    server_port: int = 8888
+    server_port: int = 9876
     connection_timeout: float = 5.0
     auto_reconnect: bool = True
     
