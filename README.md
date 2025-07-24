@@ -53,3 +53,11 @@ On the machine that is controlling
 ## Status: 🚧 In Development
 
 See `TODO.md` for current progress and roadmap.
+
+---
+
+## License
+
+- **Code**: [MIT License](./LICENSE.txt)
+
+---
